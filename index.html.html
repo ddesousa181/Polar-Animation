@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Polar Coordinate Animator</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: system-ui, sans-serif; background: #f7f4ef; color: #1a1a2e; padding: 24px; }
+  .polar-wrap { max-width: 640px; margin: 0 auto; }
+  h1 { font-size: 22px; font-weight: 500; margin-bottom: 20px; color: #1a1a2e; }
+  .controls { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; margin-bottom: 20px; }
+  .ctrl-group { display: flex; flex-direction: column; gap: 4px; }
+  .ctrl-group label { font-size: 16px; color: #5F5E5A; }
+  select { min-width: 140px; font-size: 16px; padding: 6px 10px; border: 1px solid #d4cfc8; border-radius: 6px; background: #fff; color: #1a1a2e; }
+  button { font-size: 16px; padding: 8px 20px; border: 1px solid #d4cfc8; border-radius: 6px; background: #fff; color: #1a1a2e; cursor: pointer; }
+  button:hover { background: #f0ede8; }
+  .legend { display: flex; gap: 20px; margin-bottom: 14px; flex-wrap: wrap; }
+  .legend-item { display: flex; align-items: center; gap: 7px; font-size: 14px; color: #5F5E5A; }
+  .info-row { display: flex; gap: 14px; margin-bottom: 14px; flex-wrap: wrap; }
+  .info-chip { font-size: 15px; padding: 6px 14px; border-radius: 6px; border: 1px solid #d4cfc8; background: #fff; color: #1a1a2e; }
+  .info-chip span { color: #888780; margin-right: 4px; }
+  canvas { display: block; width: 100%; max-width: 580px; margin: 0 auto; background: #fff; border-radius: 8px; border: 1px solid #d4cfc8; }
+  .step-label { text-align: center; font-size: 16px; color: #5F5E5A; margin-top: 12px; min-height: 24px; font-weight: 500; }
+</style>
+</head>
+<body>
+<div class="polar-wrap">
+  <h1>Polar Coordinate Animator</h1>
+
+  <div class="controls">
+    <div class="ctrl-group">
+      <label>radius r</label>
+      <select id="rSel">
+        <option value="1">1</option>
+        <option value="2" selected>2</option>
+        <option value="3">3</option>
+        <option value="-1">−1</option>
+        <option value="-2">−2</option>
+        <option value="-3">−3</option>
+        <option value="1.5">1.5</option>
+        <option value="-1.5">−1.5</option>
+      </select>
+    </div>
+    <div class="ctrl-group">
+      <label>angle θ</label>
+      <select id="thSel">
+        <option value="0">0</option>
+        <option value="0.5236">π/6</option>
+        <option value="0.7854">π/4</option>
+        <option value="1.0472" selected>π/3</option>
+        <option value="1.5708">π/2</option>
+        <option value="2.0944">2π/3</option>
+        <option value="2.3562">3π/4</option>
+        <option value="2.6180">5π/6</option>
+        <option value="3.1416">π</option>
+        <option value="3.6652">7π/6</option>
+        <option value="3.9270">5π/4</option>
+        <option value="4.1888">4π/3</option>
+        <option value="4.7124">3π/2</option>
+        <option value="5.2360">5π/3</option>
+        <option value="5.4978">7π/4</option>
+        <option value="5.7596">11π/6</option>
+        <option value="-0.5236">−π/6</option>
+        <option value="-0.7854">−π/4</option>
+        <option value="-1.0472">−π/3</option>
+        <option value="-1.5708">−π/2</option>
+      </select>
+    </div>
+    <div class="ctrl-group">
+      <label>&nbsp;</label>
+      <button onclick="startAnim()">Animate ▶</button>
+    </div>
+  </div>
+
+  <div class="legend">
+    <div class="legend-item">
+      <div style="width:28px; border-top: 3px dashed #534AB7;"></div>
+      <span>Step 1 — rotate to θ</span>
+    </div>
+    <div class="legend-item">
+      <div style="width:28px; border-top: 3px dashed #0F6E56;"></div>
+      <span>Step 2 — walk r (positive)</span>
+    </div>
+    <div class="legend-item">
+      <div style="width:28px; border-top: 3px dashed #993C1D;"></div>
+      <span>Step 2 — walk backward (negative r)</span>
+    </div>
+  </div>
+
+  <div class="info-row">
+    <div class="info-chip" id="coordChip"><span>point:</span> (2, π/3)</div>
+    <div class="info-chip" id="rectChip"><span>rectangular:</span> —</div>
+  </div>
+
+  <canvas id="pc" width="580" height="580"></canvas>
+  <div class="step-label" id="stepLabel">Press Animate to watch the plotting process</div>
+</div>
+
+<script>
+const canvas = document.getElementById('pc');
+const ctx = canvas.getContext('2d');
+const W = 580, H = 580, CX = W/2, CY = H/2;
+const RINGS = 4;
+const SCALE = 58;
+const ANIM_DUR = 200;
+
+const thetaLabels = {
+  "0":"0","0.5236":"π/6","0.7854":"π/4","1.0472":"π/3","1.5708":"π/2",
+  "2.0944":"2π/3","2.3562":"3π/4","2.6180":"5π/6","3.1416":"π",
+  "3.6652":"7π/6","3.9270":"5π/4","4.1888":"4π/3","4.7124":"3π/2",
+  "5.2360":"5π/3","5.4978":"7π/4","5.7596":"11π/6",
+  "-0.5236":"−π/6","-0.7854":"−π/4","-1.0472":"−π/3","-1.5708":"−π/2"
+};
+
+let animId = null, animT = 0;
+
+function px(r, t) { return CX + r * Math.cos(t); }
+function py(r, t) { return CY - r * Math.sin(t); }
+
+function drawGrid() {
+  ctx.clearRect(0, 0, W, H);
+  const gc = 'rgba(0,0,0,0.1)';
+  const lc = '#2C2C2A';
+  const ac = 'rgba(0,0,0,0.25)';
+
+  ctx.strokeStyle = gc; ctx.lineWidth = 1;
+  for (let i = 1; i <= RINGS; i++) {
+    ctx.beginPath(); ctx.arc(CX, CY, i*SCALE, 0, 2*Math.PI); ctx.stroke();
+    ctx.fillStyle = lc;
+    ctx.font = 'bold 22px system-ui, sans-serif';
+    ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+    ctx.fillText(String(i), CX + i*SCALE + 5, CY - 8);
+  }
+
+  const angles = [0,Math.PI/6,Math.PI/4,Math.PI/3,Math.PI/2,
+    2*Math.PI/3,3*Math.PI/4,5*Math.PI/6,Math.PI,
+    7*Math.PI/6,5*Math.PI/4,4*Math.PI/3,3*Math.PI/2,
+    5*Math.PI/3,7*Math.PI/4,11*Math.PI/6];
+  const names = ['0','π/6','π/4','π/3','π/2','2π/3','3π/4','5π/6','π',
+    '7π/6','5π/4','4π/3','3π/2','5π/3','7π/4','11π/6'];
+
+  ctx.strokeStyle = gc; ctx.lineWidth = 0.8;
+  angles.forEach((a, i) => {
+    ctx.beginPath();
+    ctx.moveTo(CX, CY);
+    ctx.lineTo(px(RINGS*SCALE, a), py(RINGS*SCALE, a));
+    ctx.stroke();
+    ctx.fillStyle = lc;
+    ctx.font = 'bold 17px system-ui, sans-serif';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(names[i], px(RINGS*SCALE+30, a), py(RINGS*SCALE+30, a));
+  });
+
+  ctx.strokeStyle = ac; ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.moveTo(CX-RINGS*SCALE-30, CY); ctx.lineTo(CX+RINGS*SCALE+30, CY); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(CX, CY-RINGS*SCALE-30); ctx.lineTo(CX, CY+RINGS*SCALE+30); ctx.stroke();
+
+  ctx.fillStyle = '#444441';
+  ctx.font = '15px system-ui, sans-serif';
+  ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+  ctx.fillText('polar axis →', CX+RINGS*SCALE+6, CY-12);
+
+  ctx.fillStyle = '#1a1a2e';
+  ctx.font = '15px system-ui, sans-serif';
+  ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
+  ctx.fillText('pole', CX, CY-7);
+}
+
+function lerp(a, b, t) { return a+(b-a)*t; }
+function ease(t) { return t<0.5 ? 2*t*t : -1+(4-2*t)*t; }
+
+function drawFrame(tNorm) {
+  const r     = parseFloat(document.getElementById('rSel').value);
+  const theta = parseFloat(document.getElementById('thSel').value);
+  drawGrid();
+
+  const purple = '#534AB7';
+  const coral  = '#993C1D';
+  const teal   = '#0F6E56';
+  const ink    = '#1a1a2e';
+  const p1end  = 0.52;
+
+  if (tNorm > 0) {
+    const ep1   = ease(Math.min(1, tNorm/p1end));
+    const sweep = lerp(0, theta, ep1);
+
+    ctx.strokeStyle = purple; ctx.lineWidth = 2.5;
+    ctx.setLineDash([7, 5]);
+    ctx.beginPath(); ctx.moveTo(CX, CY); ctx.lineTo(px(RINGS*SCALE, sweep), py(RINGS*SCALE, sweep)); ctx.stroke();
+    ctx.setLineDash([]);
+
+    const arcR = 44;
+    ctx.strokeStyle = purple; ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.arc(CX, CY, arcR, 0, -sweep, theta >= 0);
+    ctx.stroke();
+
+    const arrowA = -sweep + (theta >= 0 ? -0.2 : 0.2);
+    const ax = CX + Math.cos(arrowA)*arcR;
+    const ay = CY + Math.sin(arrowA)*arcR;
+    const tA = arrowA + (theta >= 0 ? -Math.PI/2 : Math.PI/2);
+    ctx.fillStyle = purple;
+    ctx.beginPath();
+    ctx.moveTo(ax, ay);
+    ctx.lineTo(ax+Math.cos(tA-0.4)*10, ay+Math.sin(tA-0.4)*10);
+    ctx.lineTo(ax+Math.cos(tA+0.4)*10, ay+Math.sin(tA+0.4)*10);
+    ctx.closePath(); ctx.fill();
+
+    if (ep1 > 0.25) {
+      const thKey = document.getElementById('thSel').value;
+      const midA = sweep/2;
+      ctx.fillStyle = purple;
+      ctx.font = 'bold 20px system-ui, sans-serif';
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText('θ = '+(thetaLabels[thKey]||thKey),
+        CX+Math.cos(midA)*(arcR+28), CY-Math.sin(midA)*(arcR+28));
+    }
+
+    if (ep1 > 0.35 && theta !== 0) {
+      ctx.fillStyle = purple;
+      ctx.font = '17px system-ui, sans-serif';
+      ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+      ctx.fillText(theta > 0 ? 'counterclockwise ↺' : 'clockwise ↻  (negative θ)',
+        CX, CY+RINGS*SCALE+10);
+    }
+  }
+
+  if (tNorm > p1end) {
+    const ep2  = ease(Math.min(1, (tNorm-p1end)/(1-p1end)));
+    const dist = lerp(0, r*SCALE, ep2);
+    const isNeg = r < 0;
+    const lc   = isNeg ? coral : teal;
+    const ex   = px(dist, theta), ey = py(dist, theta);
+
+    ctx.strokeStyle = lc; ctx.lineWidth = 3.5;
+    ctx.setLineDash([9, 6]);
+    ctx.beginPath(); ctx.moveTo(CX, CY); ctx.lineTo(ex, ey); ctx.stroke();
+    ctx.setLineDash([]);
+
+    const mx   = CX+Math.cos(theta)*dist*0.5;
+    const my   = CY-Math.sin(theta)*dist*0.5;
+    const perp = theta+Math.PI/2;
+    const rVal = document.getElementById('rSel').value;
+    ctx.fillStyle = lc;
+    ctx.font = 'bold 20px system-ui, sans-serif';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(isNeg ? 'r = '+rVal+'  (backward!)' : 'r = '+rVal,
+      mx+Math.cos(perp)*26, my-Math.sin(perp)*26);
+
+    if (ep2 > 0.88) {
+      ctx.fillStyle = lc;
+      ctx.beginPath(); ctx.arc(ex, ey, 9, 0, 2*Math.PI); ctx.fill();
+      ctx.fillStyle = '#ffffff';
+      ctx.beginPath(); ctx.arc(ex, ey, 4, 0, 2*Math.PI); ctx.fill();
+
+      const thKey = document.getElementById('thSel').value;
+      ctx.fillStyle = ink;
+      ctx.font = 'bold 20px system-ui, sans-serif';
+      ctx.textAlign = 'left'; ctx.textBaseline = 'bottom';
+      ctx.fillText('('+rVal+', '+(thetaLabels[thKey]||thKey)+')', ex+12, ey-5);
+
+      const rx2 = r*Math.cos(theta), ry2 = r*Math.sin(theta);
+      document.getElementById('rectChip').innerHTML =
+        '<span>rectangular:</span> ('+rx2.toFixed(2)+', '+ry2.toFixed(2)+')';
+    }
+  }
+
+  updateLabel(tNorm, r, theta);
+}
+
+function updateLabel(t, r, theta) {
+  const el    = document.getElementById('stepLabel');
+  const thKey = document.getElementById('thSel').value;
+  const rVal  = document.getElementById('rSel').value;
+  if (t === 0)  { el.textContent = 'Press Animate to watch the plotting process'; return; }
+  if (t < 0.52) { el.textContent = theta >= 0 ? 'Step 1 — rotating counterclockwise to angle θ' : 'Step 1 — rotating clockwise (negative θ)'; return; }
+  if (t < 0.9)  { el.textContent = r < 0 ? 'Step 2 — r is negative: walking backward through the origin' : 'Step 2 — walking outward r units along the terminal ray'; return; }
+  el.textContent = r < 0 ? 'Done — negative r lands on the opposite side of the origin' : 'Done — point at ('+rVal+', '+(thetaLabels[thKey]||'')+')';
+}
+
+function startAnim() {
+  if (animId) { cancelAnimationFrame(animId); animId = null; }
+  animT = 0;
+  document.getElementById('rectChip').innerHTML = '<span>rectangular:</span> —';
+  const rVal  = document.getElementById('rSel').value;
+  const thKey = document.getElementById('thSel').value;
+  document.getElementById('coordChip').innerHTML =
+    '<span>point:</span> ('+rVal+', '+(thetaLabels[thKey]||thKey)+')';
+
+  let last = null;
+  function step(ts) {
+    if (!last) last = ts;
+    if (ts-last < 16) { animId = requestAnimationFrame(step); return; }
+    last = ts; animT++;
+    const tN = Math.min(animT/ANIM_DUR, 1);
+    drawFrame(tN);
+    if (animT < ANIM_DUR) animId = requestAnimationFrame(step);
+    else animId = null;
+  }
+  drawGrid();
+  animId = requestAnimationFrame(step);
+}
+
+drawGrid(); drawFrame(0);
+</script>
+</body>
+</html>
